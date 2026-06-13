@@ -1,0 +1,115 @@
+{
+  "name": "Alcovia Focus Session Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "focus-success",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const eventId = $input.first().json.body.eventId;\nconst sessionId = $input.first().json.body.sessionId;\n\nif (!eventId || !sessionId) {\n  throw new Error('Missing eventId or sessionId');\n}\n\nreturn [{ json: { eventId, sessionId, streak: $input.first().json.body.streak, coinsAwarded: $input.first().json.body.coinsAwarded } }];"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deduplication check using static storage\n// In production n8n, use a database node\nconst eventId = $input.first().json.eventId;\n\n// Store processed events in workflow static data\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData.processedEvents) {\n  staticData.processedEvents = {};\n}\n\nif (staticData.processedEvents[eventId]) {\n  // Already processed - skip\n  return [{ json: { duplicate: true, eventId, message: 'Already processed - skipping' } }];\n}\n\n// Mark as processed\nstaticData.processedEvents[eventId] = Date.now();\n\nreturn [{ json: { duplicate: false, eventId, streak: $input.first().json.streak, coinsAwarded: $input.first().json.coinsAwarded } }];"
+      },
+      "id": "dedupe-check",
+      "name": "Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.duplicate }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "is-duplicate",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { eventId, streak, coinsAwarded } = $input.first().json;\n\n// Mock notification - in production connect to WhatsApp/Twilio\nconst message = `🔥 Focus session complete! Streak: ${streak} days, +${coinsAwarded} coins earned!`;\n\nconsole.log(`[NOTIFICATION SENT] eventId: ${eventId}`);\nconsole.log(`[MESSAGE] ${message}`);\n\nreturn [{ json: { sent: true, eventId, message, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "send-notification",
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log(`[DUPLICATE SKIPPED] eventId: ${$input.first().json.eventId}`);\nreturn [{ json: { skipped: true, reason: 'duplicate', eventId: $input.first().json.eventId } }];"
+      },
+      "id": "skip-duplicate",
+      "name": "Skip Duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, result: $json } }}"
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validate Input", "type": "main", "index": 0 }]]
+    },
+    "Validate Input": {
+      "main": [[{ "node": "Deduplicate", "type": "main", "index": 0 }]]
+    },
+    "Deduplicate": {
+      "main": [[{ "node": "Is Duplicate?", "type": "main", "index": 0 }]]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [{ "node": "Send Notification", "type": "main", "index": 0 }],
+        [{ "node": "Skip Duplicate", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Notification": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    },
+    "Skip Duplicate": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "alcovia-offline-first"
+  }
+}
