@@ -1,6 +1,12 @@
-# Alcovia Offline-First
+ Alcovia Offline-First
 
 An offline-first study app for grades 6-12 with focus sessions, syllabus tracking, and real-time sync across multiple devices.
+
+## Live Demo
+
+- **Frontend:** https://lcovia-offline-first.vercel.app/
+- **Backend:** https://lcovia-offline-first.onrender.com
+- **GitHub:** https://github.com/Nitheeshhd/lcovia-offline-first
 
 ## Stack
 
@@ -9,12 +15,12 @@ An offline-first study app for grades 6-12 with focus sessions, syllabus trackin
 - **Automation:** n8n Cloud
 - **Sync:** Custom operation-based sync with Lamport clocks
 
-## How to Run
+## How to Run Locally
 
 ### 1. Clone the repo
 ```bash
-git clone <your-repo-url>
-cd alcovia-offline-first
+git clone https://github.com/Nitheeshhd/lcovia-offline-first.git
+cd lcovia-offline-first
 ```
 
 ### 2. Start the backend
@@ -42,15 +48,16 @@ Open two browser tabs:
 1. Open Dev Panel tab
 2. Click "Go Offline" on Device A
 3. Go to Tasks tab — change a task status
-4. Go back to Dev Panel — click "Go Online"
-5. Click "Refresh All States"
-6. Server and Device A show same state ✅
+4. Go back to Dev Panel — Server state unchanged
+5. Click "Go Online"
+6. Click "Refresh All States"
+7. Server and Device A show same state ✅
 
 ## How to Demo Conflict Resolution
 
 1. Click "Simulate Conflict" in Dev Panel
-2. Device A sets task → DONE (lamport: 10)
-3. Device B sets same task → IN_PROGRESS (lamport: 8)
+2. Device A sets task → DONE (lamport: 100)
+3. Device B sets same task → IN_PROGRESS (lamport: 80)
 4. After sync → DONE wins (higher lamport) ✅
 
 ## How to Demo Idempotency
@@ -74,3 +81,30 @@ Open two browser tabs:
 4. If duplicate → skips silently
 
 ### Webhook URL
+https://alcovia-study-sync.app.n8n.cloud/webhook/focus-success
+
+## Conflict Cases Handled
+
+| Scenario | Resolution |
+|---|---|
+| Same task edited on both devices | Higher Lamport clock wins |
+| Tie in Lamport clock | Higher deviceId wins (alphabetic) |
+| Task deleted on one, edited on other | Higher Lamport wins |
+| Same sync message arrives twice | Ignored via operationId dedup |
+| Same focus session syncs from both devices | Rewarded once via processed_sessions table |
+| Same n8n webhook fires twice | Notification sent once via eventId dedup |
+
+## What I Left Out
+
+- Real WhatsApp delivery (using mock HTTP sink instead)
+- 3+ device support (designed for 2)
+- Efficient delta sync (currently sends full operation log)
+- Persistent Lamport clock across app restarts
+
+## What I'd Do Next
+
+- Add vector clocks for more precise conflict detection
+- Implement efficient sync (send only operations since last sync)
+- Add user authentication
+- Persist Lamport clock to AsyncStorage
+- Add property-based tests for convergence guarantees
